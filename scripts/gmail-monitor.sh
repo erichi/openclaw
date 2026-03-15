@@ -59,9 +59,7 @@ send_telegram() {
   log "Sending Telegram report to $OPENCLAW_TELEGRAM_TARGET..."
   # openclaw is available in the container as a symlink to openclaw.mjs
   # It connects to the local gateway on port 3000
-  if openclaw message send --to "$OPENCLAW_TELEGRAM_TARGET" --body-file - <<< "$msg" 2>/dev/null; then
-    log "Report sent."
-  elif openclaw message send --to "$OPENCLAW_TELEGRAM_TARGET" --message "$msg" 2>/dev/null; then
+  if openclaw message send --target "$OPENCLAW_TELEGRAM_TARGET" --message "$msg" 2>/dev/null; then
     log "Report sent."
   else
     log "WARNING: failed to send Telegram report; printing to stdout instead."
