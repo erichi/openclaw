@@ -27,10 +27,17 @@ if [[ -n "${GOG_CREDENTIALS_JSON:-}" ]]; then
 fi
 
 # ── Gmail cleanup cron job bootstrap ─────────────────────────────────────────
-# Write the cron jobs file only if it doesn't exist yet (first deploy).
+# Bootstrap the gmail-cleanup cron job if it isn't already in the store.
 # Subsequent changes should be made via: openclaw cron edit gmail-cleanup
 CRON_STORE="$STATE_DIR/cron/jobs.json"
-if [[ ! -f "$CRON_STORE" ]] && [[ -n "${GMAIL_MONITOR_ACCOUNT:-}" ]]; then
+JOB_EXISTS=$(python3 -c "
+import json, sys
+try:
+  jobs = json.load(open('$CRON_STORE')).get('jobs', [])
+  print('yes' if any(j.get('id') == 'gmail-cleanup' for j in jobs) else 'no')
+except: print('no')
+" 2>/dev/null || echo "no")
+if [[ "$JOB_EXISTS" == "no" ]] && [[ -n "${GMAIL_MONITOR_ACCOUNT:-}" ]]; then
   mkdir -p "$(dirname "$CRON_STORE")"
   NOW_MS=$(date +%s)000
   python3 - <<PYEOF > "$CRON_STORE"
