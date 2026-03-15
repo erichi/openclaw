@@ -136,6 +136,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       procps hostname curl git lsof openssl
 
+# Install gogcli (gog skill dependency) — Linux x86_64 binary from GitHub releases.
+# The binary inside the archive is named "gog" (not "gogcli").
+RUN curl -fsSL https://github.com/steipete/gogcli/releases/download/v0.12.0/gogcli_0.12.0_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin gog \
+    && chmod 755 /usr/local/bin/gog
+
 RUN chown node:node /app
 
 COPY --from=runtime-assets --chown=node:node /app/dist ./dist
