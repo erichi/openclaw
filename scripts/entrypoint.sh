@@ -30,8 +30,8 @@ if [[ -n "${GMAIL_MONITOR_ACCOUNT:-}" ]]; then
   INTERVAL="${GMAIL_MONITOR_INTERVAL:-3600}"  # default: 1 hour
 
   (
-    # Run once on startup (with a small delay to let gateway come up)
-    sleep 30
+    # Run once on startup (wait for gateway to be fully up)
+    sleep 60
     bash "$MONITOR_SCRIPT" || true
     # Then loop
     while sleep "$INTERVAL"; do
