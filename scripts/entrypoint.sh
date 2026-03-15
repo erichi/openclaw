@@ -13,14 +13,25 @@ if [[ -n "${GOG_CREDENTIALS_JSON:-}" ]]; then
   mkdir -p "$GOG_CONFIG_DIR"
   echo "$GOG_CREDENTIALS_JSON" > "$GOG_CONFIG_DIR/credentials.json"
 
-  # Switch keyring to file backend (no system keychain in container)
-  gog auth keyring file --no-input 2>/dev/null || true
+  # File keyring requires a password (no system keychain in container).
+  # GOG_KEYRING_PASSWORD must be set as a fly secret so gog can encrypt/decrypt tokens.
+  if [[ -z "${GOG_KEYRING_PASSWORD:-}" ]]; then
+    echo "[entrypoint] WARNING: GOG_KEYRING_PASSWORD not set — gog token import will fail"
+  else
+    export GOG_KEYRING_PASSWORD
+    # Switch keyring to file backend
+    gog auth keyring file --no-input 2>&1 || true
 
-  if [[ -n "${GOG_TOKEN_JSON:-}" ]]; then
-    TOKEN_IMPORT=$(mktemp)
-    echo "$GOG_TOKEN_JSON" > "$TOKEN_IMPORT"
-    gog auth tokens import "$TOKEN_IMPORT" --no-input 2>/dev/null || true
-    rm -f "$TOKEN_IMPORT"
+    if [[ -n "${GOG_TOKEN_JSON:-}" ]]; then
+      TOKEN_IMPORT=$(mktemp)
+      echo "$GOG_TOKEN_JSON" > "$TOKEN_IMPORT"
+      if gog auth tokens import "$TOKEN_IMPORT" --no-input 2>&1; then
+        echo "[entrypoint] gog token imported successfully"
+      else
+        echo "[entrypoint] ERROR: gog token import failed"
+      fi
+      rm -f "$TOKEN_IMPORT"
+    fi
   fi
 
   echo "[entrypoint] gog credentials configured for ${GMAIL_MONITOR_ACCOUNT:-unknown}"
@@ -78,4 +89,7 @@ PYEOF
 fi
 
 # ── Start openclaw gateway (main process) ─────────────────────────────────────
+# Export GOG_KEYRING_PASSWORD so all gog calls from agent/cron inherit it
+export GOG_KEYRING_PASSWORD
+export GOG_ACCOUNT="${GMAIL_MONITOR_ACCOUNT:-}"
 exec node openclaw.mjs gateway --allow-unconfigured --port 3000 --bind custom
