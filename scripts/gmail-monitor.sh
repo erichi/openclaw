@@ -17,15 +17,20 @@ set -euo pipefail
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
+# Load optional local config file (useful for local dev)
 ENV_FILE="${GMAIL_MONITOR_ENV:-$HOME/.openclaw/gmail-monitor.env}"
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck source=/dev/null
   source "$ENV_FILE"
 fi
 
-# Required env vars (set in ENV_FILE or environment)
-: "${GOG_ACCOUNT:?Set GOG_ACCOUNT=you@gmail.com}"
-: "${OPENCLAW_TELEGRAM_TARGET:?Set OPENCLAW_TELEGRAM_TARGET=@yourusername or chat id}"
+# Required env vars — set via fly secrets (server) or ~/.openclaw/gmail-monitor.env (local)
+# GOG_ACCOUNT maps to GMAIL_MONITOR_ACCOUNT for clarity in fly secrets
+GOG_ACCOUNT="${GOG_ACCOUNT:-${GMAIL_MONITOR_ACCOUNT:-}}"
+OPENCLAW_TELEGRAM_TARGET="${OPENCLAW_TELEGRAM_TARGET:-${GMAIL_MONITOR_TELEGRAM_TARGET:-}}"
+
+: "${GOG_ACCOUNT:?Set GOG_ACCOUNT or GMAIL_MONITOR_ACCOUNT}"
+: "${OPENCLAW_TELEGRAM_TARGET:?Set OPENCLAW_TELEGRAM_TARGET or GMAIL_MONITOR_TELEGRAM_TARGET}"
 
 # Optional
 DRY_RUN="${DRY_RUN:-0}"
@@ -51,14 +56,16 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
 send_telegram() {
   local msg="$1"
-  log "Sending Telegram report..."
-  if command -v openclaw &>/dev/null; then
-    openclaw message send --to "$OPENCLAW_TELEGRAM_TARGET" --message "$msg"
+  log "Sending Telegram report to $OPENCLAW_TELEGRAM_TARGET..."
+  # openclaw is available in the container as a symlink to openclaw.mjs
+  # It connects to the local gateway on port 3000
+  if openclaw message send --to "$OPENCLAW_TELEGRAM_TARGET" --body-file - <<< "$msg" 2>/dev/null; then
+    log "Report sent."
+  elif openclaw message send --to "$OPENCLAW_TELEGRAM_TARGET" --message "$msg" 2>/dev/null; then
+    log "Report sent."
   else
-    # Fallback: print to stdout so the openclaw agent can relay it
-    echo "TELEGRAM_REPORT_START"
+    log "WARNING: failed to send Telegram report; printing to stdout instead."
     echo "$msg"
-    echo "TELEGRAM_REPORT_END"
   fi
 }
 
