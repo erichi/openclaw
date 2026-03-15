@@ -151,7 +151,7 @@ COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
 COPY --from=runtime-assets --chown=node:node /app/extensions ./extensions
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --chown=node:node scripts/gmail-monitor.sh scripts/entrypoint.sh ./scripts/
+COPY --chown=node:node scripts/entrypoint.sh ./scripts/
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a

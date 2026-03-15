@@ -2,6 +2,8 @@
 # entrypoint.sh — initialize gog credentials then start openclaw gateway
 set -euo pipefail
 
+STATE_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+
 # ── gog credential setup ──────────────────────────────────────────────────────
 # Credentials and token are injected as fly secrets (env vars).
 # gog on Linux uses file-based keyring; set that up before any gog calls.
@@ -24,22 +26,48 @@ if [[ -n "${GOG_CREDENTIALS_JSON:-}" ]]; then
   echo "[entrypoint] gog credentials configured for ${GMAIL_MONITOR_ACCOUNT:-unknown}"
 fi
 
-# ── Gmail monitor background loop ─────────────────────────────────────────────
-if [[ -n "${GMAIL_MONITOR_ACCOUNT:-}" ]]; then
-  MONITOR_SCRIPT="/app/scripts/gmail-monitor.sh"
-  INTERVAL="${GMAIL_MONITOR_INTERVAL:-3600}"  # default: 1 hour
-
-  (
-    # Run once on startup (wait for gateway to be fully up)
-    sleep 60
-    bash "$MONITOR_SCRIPT" || true
-    # Then loop
-    while sleep "$INTERVAL"; do
-      bash "$MONITOR_SCRIPT" || true
-    done
-  ) &
-
-  echo "[entrypoint] Gmail monitor scheduled every ${INTERVAL}s"
+# ── Gmail cleanup cron job bootstrap ─────────────────────────────────────────
+# Write the cron jobs file only if it doesn't exist yet (first deploy).
+# Subsequent changes should be made via: openclaw cron edit gmail-cleanup
+CRON_STORE="$STATE_DIR/cron/jobs.json"
+if [[ ! -f "$CRON_STORE" ]] && [[ -n "${GMAIL_MONITOR_ACCOUNT:-}" ]]; then
+  mkdir -p "$(dirname "$CRON_STORE")"
+  NOW_MS=$(date +%s)000
+  python3 - <<PYEOF > "$CRON_STORE"
+import json, sys
+print(json.dumps({
+  "version": 1,
+  "jobs": [{
+    "id": "gmail-cleanup",
+    "name": "Gmail Inbox Cleanup",
+    "description": "Archive unwanted inbox emails and report via Telegram",
+    "enabled": True,
+    "createdAtMs": $NOW_MS,
+    "updatedAtMs": $NOW_MS,
+    "schedule": { "kind": "every", "everyMs": 3600000 },
+    "sessionTarget": "isolated",
+    "wakeMode": "now",
+    "payload": {
+      "kind": "agentTurn",
+      "lightContext": True,
+      "message": "Run gmail inbox cleanup. Use the gog skill: search all 5 categories (newsletters, mailing lists, social, automated updates, no-reply senders), archive matches, and report a summary. Never archive starred or important emails."
+    },
+    "delivery": {
+      "mode": "announce",
+      "channel": "telegram",
+      "to": "${GMAIL_MONITOR_TELEGRAM_TARGET:-}"
+    },
+    "failureAlert": {
+      "channel": "telegram",
+      "to": "${GMAIL_MONITOR_TELEGRAM_TARGET:-}",
+      "after": 3,
+      "cooldownMs": 3600000
+    },
+    "state": {}
+  }]
+}, indent=2))
+PYEOF
+  echo "[entrypoint] Gmail cleanup cron job bootstrapped at $CRON_STORE"
 fi
 
 # ── Start openclaw gateway (main process) ─────────────────────────────────────

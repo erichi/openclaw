@@ -106,6 +106,26 @@ Email Formatting
     --body-html "<p>Hi Name,</p><p>Thanks for meeting today. Here are the next steps:</p><ul><li>Item one</li><li>Item two</li></ul><p>Best regards,<br>Your Name</p>"
   ```
 
+Gmail Inbox Cleanup
+
+Use this procedure when asked to clean the inbox or on scheduled runs.
+
+Step 1 — search each category (run all, collect message IDs):
+- Newsletters:          `gog gmail messages search "in:inbox category:promotions unsubscribe" --max 200 --json --no-input`
+- Mailing lists:        `gog gmail messages search "in:inbox list:* -is:important" --max 200 --json --no-input`
+- Social:               `gog gmail messages search "in:inbox category:social -is:important" --max 200 --json --no-input`
+- Automated updates:    `gog gmail messages search "in:inbox category:updates -is:starred -is:important" --max 200 --json --no-input`
+- No-reply senders:     `gog gmail messages search "in:inbox from:noreply OR from:no-reply -is:starred -is:important" --max 200 --json --no-input`
+
+Step 2 — archive matches: `gog gmail archive <id1> <id2> ... --force --no-input`
+- Never archive starred (`is:starred`) or important (`is:important`) emails.
+- Archiving removes the INBOX label; email stays in All Mail.
+
+Step 3 — report summary:
+- Total archived per category.
+- If nothing found: confirm inbox is clean.
+- Keep the report concise (one line per category with a count).
+
 Notes
 
 - Set `GOG_ACCOUNT=you@gmail.com` to avoid repeating `--account`.
